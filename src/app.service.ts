@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 
 async function sleep(ms) {
@@ -7,68 +7,97 @@ async function sleep(ms) {
 
 @Injectable()
 export class AppService {
+  notificationProcess = 0;
+
   constructor(private eventEmitter: EventEmitter2) {}
 
   async getHello() {
     console.clear();
+    Logger.verbose('Iniciando el proceso');
 
-    console.log('Iniciando el proceso');
-
-    const fakeArray = Array.from({ length: 3 });
+    const fakeArray = Array.from({ length: 2 });
 
     let i = 0;
     for (const _ of fakeArray) {
+      i += 1;
       await this.eventEmitter.emitAsync('order.start-processing', {
-        orderId: i++,
+        orderId: i,
         payload: {},
       });
     }
 
-    console.log('Starting bulk events');
+    Logger.verbose('Starting bulk events');
 
     return 'Hello World!';
   }
 
   @OnEvent('order.start-processing')
-  startProcessing(data: any) {
-    return this.eventEmitter.emitAsync('order.created', data);
+  async startProcessing(data: any) {
+    await sleep(1000);
+
+    Logger.verbose('order.start-processing ' + data.orderId);
+
+    return await this.eventEmitter.emitAsync('order.created', data);
   }
 
   @OnEvent('order.created')
   async onOrderCreated(data: any) {
-    await sleep(2000);
+    await sleep(1000);
 
-    console.log('order.created', data);
+    Logger.verbose('order.created ' + data.orderId);
 
     await this.eventEmitter.emitAsync('order.delivered', data);
   }
 
-  @OnEvent('order.delivered', { async: true, promisify: true })
+  @OnEvent('order.delivered')
   async onOrderDelivered(data: any) {
-    await sleep(2000);
-    console.log('order.delivered', data);
+    await sleep(1000);
+    Logger.verbose('order.delivered ' + data.orderId);
 
-    await this.eventEmitter.emitAsync('order.notified-client', data);
-    await this.eventEmitter.emitAsync('order.notified-warehouse-1', data);
-    await this.eventEmitter.emitAsync('order.notified-warehouse-2', data);
+    await this.eventEmitter.emitAsync('order.notification', data);
   }
 
-  @OnEvent('order.notified-client')
+  @OnEvent('*.notification', { async: true })
   async onOrderNotifiedClient(data: any) {
-    await sleep(300);
-    console.log('order.notifiedClient', data);
+    this.notificationProcess++;
+
+    Logger.verbose(
+      `order.notifying-client No #${this.notificationProcess} ` + data.orderId,
+    );
+
+    return new Promise<void>(async (resolve) => {
+      const fakeArray = Array.from({ length: 3 });
+
+      for await (const _ of fakeArray) {
+        await sleep(1000);
+        Logger.verbose('Sending... ' + data.orderId);
+      }
+
+      await this.eventEmitter.emitAsync(`notification.sent`, data);
+
+      resolve();
+    });
   }
 
-  @OnEvent('order.notified-warehouse-1')
+  @OnEvent('*.notification')
   async onOrderNotifiedWarehouse1(data: any) {
-    await sleep(400);
-    console.log('order.notified-warehouse 1', data);
+    await sleep(2000);
+
+    Logger.verbose('order.notified-warehouse-1 ' + data.orderId);
   }
 
-  @OnEvent('order.notified-warehouse-2')
+  @OnEvent('*.notification')
   async onOrderNotifiedWarehouse2(data: any) {
-    await sleep(500);
-    console.log('order.notified-warehouse 2', data);
-    console.log('--------');
+    await sleep(2000);
+
+    Logger.verbose('order.notified-warehouse-2 ' + data.orderId);
+  }
+
+  @OnEvent('notification.sent')
+  async onOrderNotifiedWarehouse3(data: any) {
+    await sleep(5000);
+
+    Logger.verbose(`order.notification DLR` + data.orderId);
+    Logger.verbose('-------------------------------------');
   }
 }

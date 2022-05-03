@@ -6,7 +6,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 @Module({
   imports: [
     EventEmitterModule.forRoot({
-      maxListeners: 1,
+      wildcard: true,
     }),
   ],
   controllers: [AppController],
