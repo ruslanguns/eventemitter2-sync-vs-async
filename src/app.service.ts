@@ -7,44 +7,47 @@ async function sleep(ms) {
 
 @Injectable()
 export class AppService {
-  notificationProcess = 0;
-
   constructor(private eventEmitter: EventEmitter2) {}
 
-  async getHello() {
+  async setOrder() {
     console.clear();
-    Logger.verbose('Iniciando el proceso');
+    Logger.log('Bootstraping...');
+    Logger.warn('Starting bulk order processing');
 
     const fakeArray = Array.from({ length: 2 });
 
     let i = 0;
     for (const _ of fakeArray) {
-      i += 1;
+      i = i + 1;
+      console.warn(`----Process No ${i} Started ----`);
+
       await this.eventEmitter.emitAsync('order.start-processing', {
         orderId: i,
         payload: {},
       });
+
+      console.warn(`----Process No ${i} Finished ----`);
     }
 
-    Logger.verbose('Starting bulk events');
+    Logger.log('ALL PROCESSES ARE COMPLETED');
 
     return 'Hello World!';
   }
 
   @OnEvent('order.start-processing')
   async startProcessing(data: any) {
-    await sleep(1000);
+    await sleep(500);
 
-    Logger.verbose('order.start-processing ' + data.orderId);
+    Logger.verbose('order.start-processing ' + `OR#${data.orderId}`);
 
     return await this.eventEmitter.emitAsync('order.created', data);
   }
 
   @OnEvent('order.created')
   async onOrderCreated(data: any) {
-    await sleep(1000);
+    await sleep(500);
 
-    Logger.verbose('order.created ' + data.orderId);
+    Logger.verbose('order.created ' + `OR#${data.orderId}`);
 
     await this.eventEmitter.emitAsync('order.delivered', data);
   }
@@ -52,52 +55,68 @@ export class AppService {
   @OnEvent('order.delivered')
   async onOrderDelivered(data: any) {
     await sleep(1000);
-    Logger.verbose('order.delivered ' + data.orderId);
-
-    await this.eventEmitter.emitAsync('order.notification', data);
-  }
-
-  @OnEvent('*.notification', { async: true })
-  async onOrderNotifiedClient(data: any) {
-    this.notificationProcess++;
-
     Logger.verbose(
-      `order.notifying-client No #${this.notificationProcess} ` + data.orderId,
+      'order.delivered sending 2 notifications ' + `OR#${data.orderId}`,
     );
 
-    return new Promise<void>(async (resolve) => {
-      const fakeArray = Array.from({ length: 3 });
-
-      for await (const _ of fakeArray) {
-        await sleep(1000);
-        Logger.verbose('Sending... ' + data.orderId);
-      }
-
-      await this.eventEmitter.emitAsync(`notification.sent`, data);
-
-      resolve();
+    await this.eventEmitter.emitAsync('order.notification', {
+      ...data,
+      pid: 1,
+    });
+    await this.eventEmitter.emitAsync('order.notification', {
+      ...data,
+      pid: 2,
     });
   }
 
   @OnEvent('*.notification')
-  async onOrderNotifiedWarehouse1(data: any) {
-    await sleep(2000);
+  async onOrderNotifiedClient(data: any) {
+    Logger.log(
+      `order.notifying-client ` + `OR#${data.orderId}` + ` PID: ${data.pid}`,
+    );
+    const fakeArray = Array.from({ length: 3 });
 
-    Logger.verbose('order.notified-warehouse-1 ' + data.orderId);
+    for await (const _ of fakeArray) {
+      await sleep(1000);
+      Logger.debug(
+        'Sending to client...' + ` OR#${data.orderId}` + ` PID: ${data.pid}`,
+      );
+    }
+
+    await this.eventEmitter.emitAsync(`notification.sent`, data);
+  }
+
+  @OnEvent('*.notification')
+  async onOrderNotifiedWarehouse1(data: any) {
+    await sleep(1000);
+
+    Logger.verbose(
+      'order.notified-warehouse-1 ' +
+        `OR#${data.orderId}` +
+        ` PID: ${data.pid}`,
+    );
   }
 
   @OnEvent('*.notification')
   async onOrderNotifiedWarehouse2(data: any) {
-    await sleep(2000);
+    await sleep(1000);
 
-    Logger.verbose('order.notified-warehouse-2 ' + data.orderId);
+    Logger.verbose(
+      'order.notified-warehouse-2 ' +
+        `OR#${data.orderId}` +
+        ` PID: ${data.pid}`,
+    );
   }
 
   @OnEvent('notification.sent')
   async onOrderNotifiedWarehouse3(data: any) {
-    await sleep(5000);
+    await sleep(500);
 
-    Logger.verbose(`order.notification DLR` + data.orderId);
-    Logger.verbose('-------------------------------------');
+    Logger.debug(
+      `Notification sent to client` +
+        ` OR#${data.orderId}` +
+        ` PID: ${data.pid}`,
+    );
+    Logger.debug('-------------------------------------');
   }
 }

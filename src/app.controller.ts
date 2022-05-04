@@ -6,8 +6,8 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  getHello() {
-    this.appService.getHello();
+  startOrder() {
+    this.appService.setOrder();
 
     return 'ok';
   }
